@@ -40,7 +40,7 @@ export const ApiService = {
 
     try {
       const baseUrl = cleanBaseUrl(config.baseUrl);
-      const url = new URL(`${baseUrl}/get_nomenclature_list`);
+      const url = new URL(`${baseUrl}/catalog/get_nomenclature_list`);
       if (parentRef) {
         url.searchParams.append('parent_ref', parentRef);
       }
@@ -65,7 +65,7 @@ export const ApiService = {
     try {
       const baseUrl = cleanBaseUrl(config.baseUrl);
       // Removing headers (Content-Type) prevents the browser from triggering an OPTIONS preflight request
-      const res = await fetch(`${baseUrl}/get_nomenclature_detail/${ref}`);
+      const res = await fetch(`${baseUrl}/catalog/get_nomenclature_detail/${ref}`);
       if (!res.ok) throw new Error('Network response was not ok');
       return await res.json();
     } catch (error) {
@@ -82,6 +82,6 @@ export const ApiService = {
       return `https://picsum.photos/id/${id % 200 + 10}/600/600`;
     }
     const baseUrl = cleanBaseUrl(config.baseUrl);
-    return `${baseUrl}/get_nomenclature_img/${ref}`;
+    return `${baseUrl}/catalog/get_nomenclature_img/${ref}`;
   }
 };
