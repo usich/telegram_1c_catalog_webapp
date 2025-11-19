@@ -1,0 +1,5 @@
+{
+  "name": "Telegram 1С-Catalog App",
+  "description": "A hierarchical product catalog with detailed views and Telegram WebApp integration.",
+  "requestFramePermissions": []
+}
