@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { ApiService } from '../services/api';
 import { FolderItem as IFolderItem, NomenclatureItem, NomenclatureListResponse } from '../types';
@@ -64,7 +65,10 @@ export const CatalogView: React.FC<Props> = ({ parentRef, onNavigateFolder, onNa
 
   if (!data) return null;
 
-  const isEmpty = data.parent.length === 0 && data.nomenclature.length === 0;
+  // Safety checks: API might return null/undefined for arrays instead of empty arrays
+  const parents = data.parent || [];
+  const items = data.nomenclature || [];
+  const isEmpty = parents.length === 0 && items.length === 0;
 
   return (
     <div className="pb-20">
@@ -76,14 +80,14 @@ export const CatalogView: React.FC<Props> = ({ parentRef, onNavigateFolder, onNa
 
       {/* Folders First */}
       <div className="flex flex-col">
-        {data.parent.map((folder) => (
+        {parents.map((folder) => (
           <FolderItem key={folder.ref} item={folder} onClick={onNavigateFolder} />
         ))}
       </div>
 
       {/* Items Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-        {data.nomenclature.map((item) => (
+        {items.map((item) => (
           <ProductCard 
             key={item.ref} 
             item={item} 

@@ -1,9 +1,13 @@
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTelegram } from './hooks/useTelegram';
 import { CatalogView } from './pages/CatalogView';
 import { ProductDetailView } from './pages/ProductDetailView';
-import { FolderItem, NomenclatureItem } from './types';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { FolderItem, NomenclatureItem, AuthStatus } from './types';
+import { ArrowLeft, ChevronRight, Loader2, ShoppingCart } from 'lucide-react';
+import { StoreProvider, useStore } from './context/StoreContext';
+import { RegistrationForm } from './components/RegistrationForm';
+import { CartDrawer } from './components/CartDrawer';
 
 // Define types for navigation stack
 type ScreenType = 'CATALOG' | 'DETAIL';
@@ -14,8 +18,12 @@ interface NavState {
   payload?: any;
 }
 
-function App() {
+// Inner App component to use Store Context
+const MainApp = () => {
   const { tg, showBackButton, hideBackButton, onBackButtonClick } = useTelegram();
+  const { authStatus, checkAuth, cartCount } = useStore();
+  
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Initial State: Root Catalog
@@ -23,7 +31,10 @@ function App() {
     { type: 'CATALOG', id: 'root', payload: { parentRef: null, name: 'Каталог' } }
   ]);
 
-  const currentScreen = stack[stack.length - 1];
+  // Initial Auth Check
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   // Handle Telegram Back Button Visibility
   useEffect(() => {
@@ -34,28 +45,26 @@ function App() {
     }
   }, [stack, showBackButton, hideBackButton]);
 
-  // Auto-scroll breadcrumbs to the right when stack changes
+  // Auto-scroll breadcrumbs
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
     }
   }, [stack]);
 
-  // Handle Back Navigation Logic
+  // Handle Back Navigation
   const handleBack = useCallback(() => {
     if (stack.length > 1) {
       setStack(prev => prev.slice(0, -1));
     }
   }, [stack]);
 
-  // Handle Jumping to a specific point in history via breadcrumbs
   const handleJumpToHistory = (index: number) => {
     if (index < stack.length - 1) {
       setStack(prev => prev.slice(0, index + 1));
     }
   };
 
-  // Register Telegram Back Button Callback
   useEffect(() => {
     const cleanup = onBackButtonClick(() => {
       handleBack();
@@ -65,7 +74,6 @@ function App() {
     };
   }, [handleBack, onBackButtonClick]);
 
-  // Navigation Handlers
   const navigateToFolder = (folder: FolderItem) => {
     setStack(prev => [...prev, { 
       type: 'CATALOG', 
@@ -82,12 +90,36 @@ function App() {
     }]);
   };
 
+  // --- Render based on Auth Status ---
+
+  // Note: We no longer block for LOADING or UNAUTHORIZED. 
+  // The catalog should be accessible even if auth fails.
+  // We only block for explicit interaction steps like Registration or Moderation.
+
+  if (authStatus === AuthStatus.REGISTER_NEED) {
+    return <RegistrationForm onSuccess={checkAuth} />;
+  }
+
+  if (authStatus === AuthStatus.MODERATION_NEED) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-tg-bg text-tg-text p-6 text-center">
+        <div className="w-16 h-16 rounded-full bg-tg-secondary flex items-center justify-center mb-4">
+          <Loader2 className="w-8 h-8 text-tg-button animate-spin" />
+        </div>
+        <h2 className="text-xl font-bold mb-2">Аккаунт на модерации</h2>
+        <p className="text-tg-hint">Пожалуйста, ожидайте подтверждения вашей учетной записи администратором.</p>
+      </div>
+    );
+  }
+
+  // --- Main App Interface (Authorized or Guest) ---
+  const currentScreen = stack[stack.length - 1];
+
   return (
     <div className="min-h-screen bg-tg-bg text-tg-text font-sans">
       {/* Header with Breadcrumbs */}
-      <header className="sticky top-0 z-50 bg-tg-bg/95 backdrop-blur-sm border-b border-tg-secondary px-4 h-14 flex items-center shadow-sm transition-colors">
+      <header className="sticky top-0 z-30 bg-tg-bg/95 backdrop-blur-sm border-b border-tg-secondary px-4 h-14 flex items-center shadow-sm transition-colors">
         {stack.length > 1 && (
-           // Fallback back button if Telegram native one fails or for testing in browser
           <button 
             onClick={handleBack}
             className="mr-2 p-1 -ml-2 rounded-full hover:bg-tg-secondary text-tg-button flex-shrink-0"
@@ -96,10 +128,9 @@ function App() {
           </button>
         )}
         
-        {/* Breadcrumb Navigation */}
         <div 
           ref={scrollContainerRef}
-          className="flex-1 flex items-center overflow-x-auto no-scrollbar h-full mask-linear-fade"
+          className="flex-1 flex items-center overflow-x-auto no-scrollbar h-full mask-linear-fade mr-2"
         >
           {stack.map((screen, index) => {
             const isLast = index === stack.length - 1;
@@ -124,12 +155,25 @@ function App() {
             );
           })}
         </div>
+
+        {/* Floating Cart Trigger (Header) */}
+        <button 
+          onClick={() => setIsCartOpen(true)}
+          className="relative p-2 text-tg-button hover:bg-tg-secondary rounded-full transition-colors"
+        >
+          <ShoppingCart className="w-6 h-6" />
+          {cartCount > 0 && (
+            <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full shadow-sm">
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          )}
+        </button>
       </header>
 
       <main className="p-4">
         {currentScreen.type === 'CATALOG' && (
           <CatalogView 
-            key={currentScreen.id} // Key forces remount/reset when switching folders if needed, or keeps state if unique
+            key={currentScreen.id}
             parentRef={currentScreen.payload.parentRef}
             onNavigateFolder={navigateToFolder}
             onNavigateProduct={navigateToProduct}
@@ -144,7 +188,19 @@ function App() {
           />
         )}
       </main>
+
+      {/* Cart Overlay */}
+      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </div>
+  );
+};
+
+// Root Wrapper
+function App() {
+  return (
+    <StoreProvider>
+      <MainApp />
+    </StoreProvider>
   );
 }
 

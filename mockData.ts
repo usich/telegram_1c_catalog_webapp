@@ -1,6 +1,10 @@
 
 import { NomenclatureDetailResponse, NomenclatureListResponse } from "./types";
 
+// Use this field to simulate Telegram initData when testing in a standard browser (localhost)
+// Format: "query_id=...&user=...&auth_date=...&hash=..."
+export const DEBUG_INIT_DATA = "query_id=AAFOPZgpAAAAAE49mCkH7XYI&user=%7B%22id%22%3A697843022%2C%22first_name%22%3A%22%D0%98%D0%BB%D1%8C%D1%8F%22%2C%22last_name%22%3A%22%22%2C%22username%22%3A%22ilya_usichenko%22%2C%22language_code%22%3A%22ru%22%2C%22allows_write_to_pm%22%3Atrue%2C%22photo_url%22%3A%22https%3A%5C%2F%5C%2Ft.me%5C%2Fi%5C%2Fuserpic%5C%2F320%5C%2FL-Q0ofRLNtjn-7UW9O2Fi9cD32xNR_rW_pdXMZr9UL8.svg%22%7D&auth_date=1763649610&signature=c5LaiYCa0agg4Da60x1KDPkLiHWCA9CsnLIYAUS0QlqtPzD-gxLjrxkRI07eoMqwtD83v8VgyNioU3sYAW7KAg&hash=678bfbc40c47912a657b6d0b888372791aa369e50d196b4d48c991ecba673384"; 
+
 export const MOCK_CATALOG_ROOT: NomenclatureListResponse = {
   parent: [
     { ref: "cat_elec", name: "Электроника", parent: null },

@@ -41,3 +41,59 @@ export interface AppConfig {
   baseUrl: string;
   useMock: boolean;
 }
+
+// --- Auth & Order Types ---
+
+export interface AuthRequest {
+  initData: string;
+}
+
+export interface AuthResponse {
+  token: string;
+}
+
+export interface RegisterRequest {
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  phone_number: string;
+  email?: string;
+}
+
+export interface ApiError {
+  error: string;
+  error_code: number;
+}
+
+export interface OrderItem {
+  nomenclature: string; // ref
+  characteristic: string; // ref or empty string
+  count: number;
+  price: number;
+}
+
+export interface OrderRequest {
+  items: OrderItem[];
+  comment: string;
+}
+
+// --- Cart Internal Types ---
+
+export interface CartItem {
+  id: string; // unique composite key (ref + char_ref)
+  productRef: string;
+  productName: string;
+  charRef: string;
+  charName: string; // "XL" or "Standard"
+  price: number;
+  count: number;
+  imageUrl?: string;
+}
+
+export enum AuthStatus {
+  LOADING = 'LOADING',
+  AUTHORIZED = 'AUTHORIZED',
+  REGISTER_NEED = 'REGISTER_NEED', // Code 101
+  MODERATION_NEED = 'MODERATION_NEED', // Code 102
+  UNAUTHORIZED = 'UNAUTHORIZED', // Generic 401 (not in TG)
+}
