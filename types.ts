@@ -75,6 +75,10 @@ export interface OrderItem {
 export interface OrderRequest {
   items: OrderItem[];
   comment: string;
+  delivery: {
+    type: 'pickup' | 'delivery';
+    address: string;
+  };
 }
 
 // --- Cart Internal Types ---

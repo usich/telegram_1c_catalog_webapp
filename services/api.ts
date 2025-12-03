@@ -26,8 +26,8 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // Helper to clean base URL
 const cleanBaseUrl = (url: string) => url.replace(/\/$/, '');
 
-// In-memory token storage
-let authToken: string | null = null;
+// In-memory token storage, initialized from LocalStorage if available
+let authToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('x-auth-token') : null;
 
 interface FetchOptions extends RequestInit {
   skipAuth?: boolean;
@@ -36,6 +36,7 @@ interface FetchOptions extends RequestInit {
 export const ApiService = {
   setToken: (token: string) => {
     authToken = token;
+    localStorage.setItem('x-auth-token', token);
   },
 
   getToken: () => authToken,
@@ -106,7 +107,9 @@ export const ApiService = {
       if (error.code === 100) {
         console.log("Token expired, attempting re-auth...");
         try {
-          await ApiService.authenticate();
+          // Force refresh = true
+          await ApiService.authenticate(true);
+          
           // Re-add token to header
           if (authToken && !options.skipAuth) {
              // @ts-ignore
@@ -137,12 +140,25 @@ export const ApiService = {
   },
 
   // --- Auth ---
-  authenticate: async (): Promise<AuthResponse> => {
+  // forceRefresh: set to true only if we got a 100 Error previously
+  authenticate: async (forceRefresh = false): Promise<AuthResponse> => {
+    // Ensure variable is in sync with storage
+    if (!authToken && typeof localStorage !== 'undefined') {
+      authToken = localStorage.getItem('x-auth-token');
+    }
+
     if (config.useMock) {
       await delay(500);
       const mockToken = "mock_token_" + Date.now();
       authToken = mockToken;
+      localStorage.setItem('x-auth-token', mockToken);
       return { token: mockToken };
+    }
+
+    // Optimization: If we have a token and we are NOT forcing a refresh, return existing
+    // This skips the network request if a token is already saved.
+    if (authToken && !forceRefresh) {
+      return { token: authToken };
     }
 
     // Fallback to DEBUG_INIT_DATA if not in TG
@@ -176,6 +192,7 @@ export const ApiService = {
 
     if (data.token) {
       authToken = data.token;
+      localStorage.setItem('x-auth-token', data.token);
     }
     return data;
   },
@@ -217,6 +234,63 @@ export const ApiService = {
     return resData;
   },
 
+  createOrder: async (data: OrderRequest): Promise<any> => {
+    if (config.useMock) {
+      await delay(1000);
+      return { status: "ok" };
+    }
+
+    // Wrapper to handle Retry Logic (Code 100) locally for this request
+    const performRequest = async () => {
+        const baseUrl = cleanBaseUrl(config.baseUrl);
+        const url = `${baseUrl}/order/`;
+        
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json'
+        };
+        
+        // Use current global authToken with X-Auth-Token header
+        if (authToken) {
+            // @ts-ignore
+            headers['X-Auth-Token'] = authToken;
+        }
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(data)
+        });
+
+        let resData;
+        try {
+            const text = await res.text();
+            resData = JSON.parse(text);
+        } catch { resData = {}; }
+
+        // Strict 201 check
+        if (res.status !== 201) {
+             // Check for specific error codes
+             if (resData.error_code) {
+                 throw { status: res.status, code: resData.error_code, message: resData.error };
+             }
+             throw { status: res.status, message: resData.error || "Order failed" };
+        }
+        return resData;
+    };
+
+    try {
+        return await performRequest();
+    } catch (error: any) {
+        // If token expired, refresh and retry
+        if (error.code === 100) {
+            console.log("Order failed (Token expired), retrying...");
+            await ApiService.authenticate(true); // Force refresh
+            return await performRequest(); // Retry with new token (picked up from authToken var)
+        }
+        throw error;
+    }
+  },
+
   // --- Catalog ---
   getNomenclatureList: async (parentRef?: string): Promise<NomenclatureListResponse> => {
     if (config.useMock) {
@@ -234,106 +308,23 @@ export const ApiService = {
       }
     }
 
-    let query = "";
-    if (parentRef) {
-      query = `?parent_ref=${parentRef}`;
-    }
-    
-    // We skip Auth header for public catalog to keep requests simple
-    // unless specifically needed by backend logic.
-    return ApiService.customFetch(`/catalog/get_nomenclature_list${query}`, {
-        method: 'GET',
-        skipAuth: true
-    });
+    const queryString = parentRef ? `?parent_ref=${parentRef}` : '';
+    // X-Auth-Token will be sent automatically by customFetch if authToken exists
+    return await ApiService.customFetch(`/catalog/get_nomenclature_list${queryString}`, { method: 'GET' });
   },
 
   getNomenclatureDetail: async (ref: string): Promise<NomenclatureDetailResponse> => {
     if (config.useMock) {
       await delay(300);
-      const detail = MOCK_DETAILS[ref];
-      if (!detail) throw new Error("Item not found in mock data");
-      return detail;
+      if (MOCK_DETAILS[ref]) return MOCK_DETAILS[ref];
+      return { ref, parent: null, name: "Товар", price: [] };
     }
-    return ApiService.customFetch(`/catalog/get_nomenclature_detail/${ref}`, {
-        method: 'GET',
-        skipAuth: true
-    });
+    // X-Auth-Token will be sent automatically by customFetch if authToken exists
+    return await ApiService.customFetch(`/catalog/get_nomenclature_detail/${ref}`, { method: 'GET' });
   },
-
-  getImageUrl: (ref: string): string => {
-    if (config.useMock) {
-      const id = ref.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      return `https://picsum.photos/id/${id % 200 + 10}/600/600`;
-    }
-    const baseUrl = cleanBaseUrl(config.baseUrl);
-    return `${baseUrl}/catalog/get_nomenclature_img/${ref}`;
-  },
-
-  // --- Order ---
-  createOrder: async (order: OrderRequest): Promise<any> => {
-    if (config.useMock) {
-      await delay(1500);
-      return { status: "created" };
-    }
-    
-    const baseUrl = cleanBaseUrl(config.baseUrl);
-
-    const performOrder = async (token: string | null) => {
-      const url = `${baseUrl}/order/`;
-
-      const headers: HeadersInit = {
-          'Content-Type': 'application/json'
-      };
-      // Use X-Auth-Token to pass through Gateway
-      if (token) {
-          // @ts-ignore
-          headers['X-Auth-Token'] = token;
-      }
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(order)
-      });
-
-      let data;
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        try { data = JSON.parse(text); } catch { data = {}; }
-      }
-
-      // Handle Token Expiry (Code 100)
-      if (res.status === 401 && data.error_code === 100) {
-        throw { code: 100 };
-      }
-
-      // Handle Registration/Moderation
-      if (res.status === 403) {
-        if (data.error_code === 101) throw { code: 101, message: 'Registration needed' };
-        if (data.error_code === 102) throw { code: 102, message: 'Moderation needed' };
-      }
-
-      // Strict 201 check
-      if (res.status !== 201) {
-        throw new Error(data.error || `Ошибка создания заказа (Status: ${res.status})`);
-      }
-
-      return data;
-    };
-
-    try {
-      return await performOrder(authToken);
-    } catch (err: any) {
-      if (err.code === 100) {
-        // Retry flow
-        console.log("Order: Token expired, refreshing...");
-        await ApiService.authenticate();
-        return await performOrder(authToken);
-      }
-      throw err;
-    }
+  
+  getImageUrl: (ref: string) => {
+      const baseUrl = cleanBaseUrl(config.baseUrl);
+      return `${baseUrl}/catalog/get_nomenclature_img/${ref}`;
   }
 };

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { X, Trash2, Plus, Minus, CheckCircle, Loader2, AlertCircle, Info } from 'lucide-react';
+import { X, Trash2, Plus, Minus, CheckCircle, Loader2, AlertCircle, Info, MapPin, Truck } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { AuthStatus } from '../types';
 
@@ -13,6 +13,8 @@ interface Props {
 export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
   const { cart, removeFromCart, updateCartItemCount, clearCart, cartTotal, authStatus, checkAuth, processAuthError } = useStore();
   const [comment, setComment] = useState("");
+  const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>('pickup');
+  const [address, setAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +25,13 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
 
   const handleCheckout = async () => {
     setError(null);
+    
+    // Validation
+    if (deliveryType === 'delivery' && !address.trim()) {
+      setError("Пожалуйста, укажите адрес доставки");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -46,7 +55,11 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
 
       await ApiService.createOrder({
         items: orderItems,
-        comment
+        comment,
+        delivery: {
+          type: deliveryType,
+          address: deliveryType === 'delivery' ? address : ""
+        }
       });
 
       setSuccess(true);
@@ -54,6 +67,8 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
         clearCart();
         setSuccess(false);
         setComment("");
+        setAddress("");
+        setDeliveryType('pickup');
         onClose();
       }, 2500);
 
@@ -157,14 +172,55 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="p-4 bg-tg-bg border-t border-tg-secondary space-y-4">
+          <div className="p-4 bg-tg-bg border-t border-tg-secondary space-y-4 pb-8">
+            
+            {/* Delivery Selector */}
+            <div className="flex bg-tg-secondary rounded-xl p-1">
+              <button
+                onClick={() => setDeliveryType('pickup')}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  deliveryType === 'pickup' 
+                    ? 'bg-tg-button text-tg-buttonText shadow-sm' 
+                    : 'text-tg-hint hover:text-tg-text'
+                }`}
+              >
+                <MapPin className="w-4 h-4" />
+                Самовывоз
+              </button>
+              <button
+                onClick={() => setDeliveryType('delivery')}
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  deliveryType === 'delivery' 
+                    ? 'bg-tg-button text-tg-buttonText shadow-sm' 
+                    : 'text-tg-hint hover:text-tg-text'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                Доставка
+              </button>
+            </div>
+
+            {/* Address Input */}
+            {deliveryType === 'delivery' && (
+              <div className="animate-in slide-in-from-top-2 duration-200">
+                <label className="block text-sm text-tg-hint mb-1">Адрес доставки *</label>
+                <textarea 
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full p-3 rounded-xl bg-tg-secondary text-tg-text text-sm resize-none h-20 focus:outline-none focus:ring-1 focus:ring-tg-button transition-all"
+                  placeholder="Улица, дом, квартира..."
+                />
+              </div>
+            )}
+
+            {/* Comment */}
             <div>
               <label className="block text-sm text-tg-hint mb-1">Комментарий к заказу</label>
               <textarea 
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="w-full p-3 rounded-xl bg-tg-secondary text-tg-text text-sm resize-none h-20 focus:outline-none focus:ring-1 focus:ring-tg-button"
-                placeholder="Например: домофон 123..."
+                className="w-full p-3 rounded-xl bg-tg-secondary text-tg-text text-sm resize-none h-16 focus:outline-none focus:ring-1 focus:ring-tg-button"
+                placeholder="Дополнительные пожелания..."
               />
             </div>
 
