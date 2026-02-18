@@ -21,15 +21,40 @@ export const RegistrationForm: React.FC<Props> = ({ onSuccess }) => {
 
   // Simple Phone Mask for +7 (XXX) XXX-XX-XX
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.startsWith('7')) val = val.substring(1); // Strip leading 7
-    val = val.substring(0, 10); // Limit length
+    const input = e.target.value;
+    const digits = input.replace(/\D/g, '');
 
-    let formatted = '';
-    if (val.length > 0) formatted += '+7 (' + val.substring(0, 3);
-    if (val.length >= 4) formatted += ') ' + val.substring(3, 6);
-    if (val.length >= 7) formatted += '-' + val.substring(6, 8);
-    if (val.length >= 9) formatted += '-' + val.substring(8, 10);
+    // Allow clearing
+    if (!digits) {
+      setFormData(prev => ({ ...prev, phone_number: '' }));
+      return;
+    }
+
+    let body = digits;
+    
+    // Strip leading 7 or 8 (country codes) to get the body
+    // This allows typing "79..." or "89..." naturally
+    if (body.startsWith('7') || body.startsWith('8')) {
+      body = body.substring(1);
+    }
+
+    // Limit to 10 digits
+    body = body.substring(0, 10);
+
+    let formatted = '+7 (';
+    
+    if (body.length > 0) {
+      formatted += body.substring(0, 3);
+    }
+    if (body.length >= 4) {
+      formatted += ') ' + body.substring(3, 6);
+    }
+    if (body.length >= 7) {
+      formatted += '-' + body.substring(6, 8);
+    }
+    if (body.length >= 9) {
+      formatted += '-' + body.substring(8, 10);
+    }
 
     setFormData(prev => ({ ...prev, phone_number: formatted }));
   };
@@ -40,6 +65,7 @@ export const RegistrationForm: React.FC<Props> = ({ onSuccess }) => {
 
     // Basic Validation
     const cleanPhone = formData.phone_number.replace(/\D/g, '');
+    // +7 + 10 digits = 11 digits total. 
     if (cleanPhone.length !== 11) {
       setError("Введите корректный номер телефона");
       return;

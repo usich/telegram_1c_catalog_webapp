@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStore } from '../context/StoreContext';
-import { X, Trash2, Plus, Minus, CheckCircle, Loader2, AlertCircle, Info, MapPin, Truck } from 'lucide-react';
+import { X, Trash2, Plus, Minus, CheckCircle, Loader2, AlertCircle, Info, MapPin, Truck, Keyboard } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { AuthStatus } from '../types';
 
@@ -23,7 +23,18 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showModerationModal, setShowModerationModal] = useState(false);
 
+  // Ref to track scroll container for keyboard dismissal
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const dismissKeyboard = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
   const handleCheckout = async () => {
+    // Immediate keyboard dismissal to prevent UI jumping during submission
+    dismissKeyboard();
     setError(null);
     
     // Validation
@@ -92,6 +103,17 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
     processAuthError({ code: 101 }); // Trigger global registration view
   };
 
+  // Close drawer and keyboard
+  const handleClose = () => {
+    dismissKeyboard();
+    onClose();
+  };
+
+  // Keyboard dismissal on scroll start (native-like behavior)
+  const handleScroll = () => {
+    dismissKeyboard();
+  };
+
   if (!isOpen) return null;
 
   // Success Animation View
@@ -110,21 +132,37 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+        onClick={handleClose} 
+      />
 
       {/* Drawer Content */}
-      <div className="relative w-full max-w-md bg-tg-bg h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+      <div 
+        className="relative w-full max-w-md bg-tg-bg h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden"
+        onClick={(e) => {
+            // If user clicks on the "empty" areas of the drawer, hide keyboard
+            if (e.target === e.currentTarget) dismissKeyboard();
+        }}
+      >
         
         {/* Header */}
-        <div className="p-4 border-b border-tg-secondary flex items-center justify-between">
+        <div 
+            className="p-4 border-b border-tg-secondary flex items-center justify-between flex-shrink-0"
+            onClick={dismissKeyboard}
+        >
           <h2 className="text-xl font-bold text-tg-text">Корзина</h2>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-tg-secondary text-tg-hint">
+          <button onClick={handleClose} className="p-2 rounded-full hover:bg-tg-secondary text-tg-hint">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Items List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div 
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-4 space-y-4 touch-pan-y"
+        >
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-tg-hint opacity-60">
               <Trash2 className="w-12 h-12 mb-2" />
@@ -172,10 +210,10 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="p-4 bg-tg-bg border-t border-tg-secondary space-y-4 pb-8">
+          <div className="p-4 bg-tg-bg border-t border-tg-secondary space-y-4 pb-8 flex-shrink-0">
             
             {/* Delivery Selector */}
-            <div className="flex bg-tg-secondary rounded-xl p-1">
+            <div className="flex bg-tg-secondary rounded-xl p-1" onClick={dismissKeyboard}>
               <button
                 onClick={() => setDeliveryType('pickup')}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 ${
@@ -202,8 +240,13 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
 
             {/* Address Input */}
             {deliveryType === 'delivery' && (
-              <div className="animate-in slide-in-from-top-2 duration-200">
-                <label className="block text-sm text-tg-hint mb-1">Адрес доставки *</label>
+              <div className="animate-in slide-in-from-top-2 duration-200 relative">
+                <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm text-tg-hint">Адрес доставки *</label>
+                    <button onClick={dismissKeyboard} className="text-[10px] text-tg-button flex items-center gap-1 md:hidden">
+                        <Keyboard className="w-3 h-3" /> Скрыть
+                    </button>
+                </div>
                 <textarea 
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
@@ -214,8 +257,13 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
             )}
 
             {/* Comment */}
-            <div>
-              <label className="block text-sm text-tg-hint mb-1">Комментарий к заказу</label>
+            <div className="relative">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm text-tg-hint">Комментарий к заказу</label>
+                <button onClick={dismissKeyboard} className="text-[10px] text-tg-button flex items-center gap-1 md:hidden">
+                    <Keyboard className="w-3 h-3" /> Скрыть
+                </button>
+              </div>
               <textarea 
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -224,7 +272,7 @@ export const CartDrawer: React.FC<Props> = ({ isOpen, onClose }) => {
               />
             </div>
 
-            <div className="flex items-center justify-between text-lg font-bold">
+            <div className="flex items-center justify-between text-lg font-bold" onClick={dismissKeyboard}>
               <span>Итого:</span>
               <span>{cartTotal.toLocaleString()} ₽</span>
             </div>
