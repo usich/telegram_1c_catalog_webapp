@@ -18,3 +18,11 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Oo6B07h7AABrWcOC0voip6
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+
+
+
+
+<img width="250" height="60" alt="GHBanner" src="https://infostart.ru/bitrix/templates/sandbox_empty/assets/tpl/abo/img/logo.svg" />
+<a href="https://infostart.ru/1c/tools/2620588/" rel="nofollow">Интеграция 1С с telegram. Веб приложение с каталогом и оформлением заказа
+</a>
